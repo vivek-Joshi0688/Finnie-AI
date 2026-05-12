@@ -89,19 +89,48 @@ def extract_symbol(query: str) -> str:
 
 
 def get_stock_price(symbol: str) -> dict:
-    """Fetch the latest closing price via yfinance. Falls back to 1-month period if 5-day is empty."""
+    """Fetch the latest closing price via yfinance with retry on 429."""
+    import time
+
     logger.info(f"[market] fetching price for {symbol}")
-    for period in ("5d", "1mo"):
+    ticker = yf.Ticker(symbol)
+
+    # Try fast_info first (single network call, lowest latency)
+    for attempt in range(3):
         try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period=period)
-            if not hist.empty:
-                price = round(float(hist["Close"].iloc[-1]), 2)
-                date  = str(hist.index[-1].date())
-                logger.info(f"[market] {symbol} = {price} ({date})")
-                return {"symbol": symbol, "price": price, "date": date}
+            fi = ticker.fast_info
+            price = fi.last_price
+            if price and price == price:  # not None and not NaN
+                from datetime import date as _date
+                today = str(_date.today())
+                logger.info(f"[market] {symbol} fast_info = {price} ({today})")
+                return {"symbol": symbol, "price": round(float(price), 2), "date": today}
         except Exception as e:
-            logger.warning(f"[market] yfinance period={period} failed for {symbol}: {e}")
+            if "429" in str(e) or "Too Many" in str(e):
+                wait = 2 ** attempt
+                logger.warning(f"[market] 429 on fast_info attempt {attempt+1}, sleeping {wait}s")
+                time.sleep(wait)
+            else:
+                logger.warning(f"[market] fast_info failed for {symbol}: {e}")
+                break
+
+    # Fallback: history()
+    for period in ("5d", "1mo"):
+        for attempt in range(2):
+            try:
+                hist = ticker.history(period=period)
+                if not hist.empty:
+                    price = round(float(hist["Close"].iloc[-1]), 2)
+                    date  = str(hist.index[-1].date())
+                    logger.info(f"[market] {symbol} history = {price} ({date})")
+                    return {"symbol": symbol, "price": price, "date": date}
+                break
+            except Exception as e:
+                if "429" in str(e) or "Too Many" in str(e):
+                    time.sleep(2 ** attempt)
+                else:
+                    logger.warning(f"[market] history period={period} failed for {symbol}: {e}")
+                    break
 
     return {
         "error": (
