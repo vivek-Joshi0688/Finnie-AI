@@ -23,7 +23,7 @@ const Sidebar = () => {
   const menuItems = [
     { text: "Home",  icon: <HomeIcon />,path: "/" },
     { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-    { text: "Settings", icon: <SettingsIcon />, path: "/settings" },
+    // { text: "Settings", icon: <SettingsIcon />, path: "/settings" },
     { text: "Chat", icon: <chatIcon />, path: "/chat" }
   ];
 

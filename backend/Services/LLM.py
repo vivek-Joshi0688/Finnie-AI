@@ -5,6 +5,8 @@ from dotenv import load_dotenv, find_dotenv
 
 load_dotenv(find_dotenv())
 
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 class LLMService:
     def __init__(self, model: str = "gpt-4"):
         self.model = model
@@ -20,3 +22,13 @@ class LLMService:
     def summarize(self, text: str) -> str:
         prompt = f"Summarize the following:\n{text}"
         return self.generate_response(prompt)
+    
+    def ask_llm(prompt):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"LLM Error: {str(e)}"
